@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Crossfire — humans vs agents</title>
+<style>
+  :root{
+    --bg:#0d1017; --panel:#151a24; --line:#242c3a; --ink:#e7ecf3; --dim:#8b97ab;
+    --p0:#4ade80; --p1:#60a5fa; --p2:#f472b6; --p3:#fbbf24; --wall:#39435a; --obj:#22d3ee;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 600px at 50% -10%,#1a2130,#0d1017 60%);
+       color:var(--ink);font:15px/1.5 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+       min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:22px 14px 40px}
+  h1{margin:0 0 2px;font-size:30px;letter-spacing:-.5px}
+  h1 span{color:var(--obj)}
+  .tag{color:var(--dim);font-size:13px;margin-bottom:18px}
+  .wrap{width:100%;max-width:1020px;display:grid;gap:16px;grid-template-columns:1fr 320px}
+  @media(max-width:880px){.wrap{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  button{background:#233047;color:var(--ink);border:1px solid #33425c;border-radius:9px;
+         padding:9px 14px;font:inherit;cursor:pointer;transition:.15s}
+  button:hover{background:#2c3c58;border-color:#42557a}
+  button.primary{background:var(--obj);color:#06202a;border-color:var(--obj);font-weight:600}
+  button.primary:hover{filter:brightness(1.08)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  input{background:#0f141d;border:1px solid var(--line);border-radius:9px;color:var(--ink);
+        padding:9px 11px;font:inherit;min-width:0;flex:1}
+  #board{display:grid;gap:6px;width:100%;aspect-ratio:1;background:#0f141d;border:1px solid var(--line);
+         border-radius:12px;padding:8px}
+  .cell{position:relative;border-radius:9px;background:#1b2231;border:1px solid #222b3c;
+        display:flex;align-items:center;justify-content:center;cursor:pointer;transition:.12s;aspect-ratio:1}
+  .cell.wall{background:repeating-linear-gradient(45deg,#2b3446 0 6px,#232c3d 6px 12px);
+             border-color:#39435a;cursor:not-allowed}
+  .cell.obj::after{content:"";position:absolute;inset:22%;border:2px dashed var(--obj);border-radius:50%;
+                   opacity:.65}
+  .cell.sel{outline:2px solid #e7ecf3;outline-offset:-2px}
+  .cell.act{box-shadow:inset 0 0 0 2px rgba(231,236,243,.55)}
+  .pc{width:76%;height:76%;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      font-weight:700;font-size:13px;color:#0b1119;position:relative;z-index:2;
+      box-shadow:0 2px 10px rgba(0,0,0,.45)}
+  .pc .hp{position:absolute;bottom:-4px;right:-4px;background:#0b1119;color:#e7ecf3;border:1px solid #39435a;
+          border-radius:7px;font-size:10px;padding:0 4px;line-height:15px}
+  .p0{background:var(--p0)} .p1{background:var(--p1)} .p2{background:var(--p2)} .p3{background:var(--p3)}
+  .side{display:flex;flex-direction:column;gap:16px}
+  .pl{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:9px;border:1px solid transparent}
+  .pl.turn{border-color:var(--obj);background:rgba(34,211,238,.08)}
+  .pl.dead{opacity:.42}
+  .dot{width:12px;height:12px;border-radius:50%;flex:0 0 auto}
+  .pl .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pl .pts{font-variant-numeric:tabular-nums;color:var(--dim)}
+  #log{height:190px;overflow:auto;font:12.5px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;
+       color:var(--dim);white-space:pre-wrap}
+  .meta{display:flex;justify-content:space-between;font-size:13px;color:var(--dim);margin-top:8px}
+  .badge{background:#233047;border:1px solid #33425c;border-radius:20px;padding:2px 10px;font-size:12px}
+  #toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#3b1d24;color:#ffd7de;
+         border:1px solid #7f3040;padding:10px 16px;border-radius:10px;opacity:0;transition:.25s;pointer-events:none}
+  #toast.on{opacity:1}
+  code{background:#0f141d;border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-size:12.5px}
+  a{color:var(--obj)}
+</style>
+</head>
+<body>
+<h1>Cross<span>fire</span></h1>
+<div class="tag">turn-based tactics · humans in the browser, agents over HTTP · 2–4 players · under 10 minutes</div>
+
+<div class="wrap">
+  <div class="card">
+    <div class="row" id="lobby">
+      <input id="name" placeholder="your name" value="">
+      <button class="primary" id="create">Create match</button>
+      <button id="joincode">Join with code</button>
+      <input id="code" placeholder="code" style="max-width:110px;text-transform:uppercase">
+      <button id="practice">Practice vs bot</button>
+    </div>
+    <div id="gamewrap" style="display:none">
+      <div class="row" style="justify-content:space-between;margin-bottom:10px">
+        <div class="row">
+          <span class="badge">room <b id="room">—</b></span>
+          <span class="badge">turn <b id="turnn">0</b></span>
+          <span class="badge" id="turnwho">—</span>
+        </div>
+        <div class="row">
+          <span class="badge" id="timer">—</span>
+          <button id="startbtn" style="display:none">Start match</button>
+          <button id="newbtn">New</button>
+        </div>
+      </div>
+      <div id="board"></div>
+      <div class="meta">
+        <span id="hint">Select one of your pieces, then click an adjacent tile.</span>
+        <span id="acts">actions 0/2</span>
+      </div>
+    </div>
+    <div id="wait" style="display:none">
+      <p style="margin:0 0 8px">Share this code so others can join:</p>
+      <p style="font-size:26px;letter-spacing:4px;margin:0 0 12px"><b id="waitcode">—</b></p>
+      <p style="color:var(--dim);margin:0">Waiting for players… the host can start with bots at any time.</p>
+    </div>
+  </div>
+
+  <div class="side">
+    <div class="card">
+      <div style="font-weight:600;margin-bottom:10px">Players</div>
+      <div id="players"></div>
+    </div>
+    <div class="card">
+      <div style="font-weight:600;margin-bottom:8px">Log</div>
+      <div id="log"></div>
+    </div>
+    <div class="card" style="font-size:12.5px;color:var(--dim)">
+      <div style="font-weight:600;color:var(--ink);margin-bottom:6px">Agent API</div>
+      <code>POST /api/match</code> create · <code>POST /api/match/&lt;code&gt;/join</code> ·<br>
+      <code>POST /api/match/&lt;code&gt;/move</code> with<br>
+      <code>{"token":"…","actions":[{"pieceId":"p0-0","type":"move","to":[1,0]}]}</code><br>
+      <span style="display:inline-block;margin-top:6px">Rules: <a href="/api/rules">/api/rules</a> · sample bot: <code>agent.js</code></span>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const PCOL = ["p0","p1","p2","p3"];
+  let S = { state:null, code:null, token:null, seat:null, sel:null, queued:[] };
+  let es = null;
+
+  const toast = (m) => {
+    const t = $("#toast"); t.textContent = m; t.classList.add("on");
+    clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove("on"), 2200);
+  };
+  const api = async (p, body) => {
+    const r = await fetch(p, {
+      method: body ? "POST" : "GET",
+      headers: body ? {"Content-Type":"application/json"} : {},
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || j.error) throw new Error(j.error || ("HTTP " + r.status));
+    return j;
+  };
+  const name = () => ($("#name").value || "").trim() || ("human-" + Math.floor(Math.random()*900+100));
+
+  async function create(practice) {
+    try {
+      const j = await api("/api/match", { name: name() });
+      S.code = j.code; S.token = j.token; S.seat = j.seat;
+      S.state = j.state; S.sel = null; S.queued = [];
+      if (practice) { await api(`/api/match/${S.code}/start`, { token: S.token }); }
+      enter();
+    } catch (e) { toast(e.message); }
+  }
+  async function join() {
+    const c = ($("#code").value || "").trim().toUpperCase();
+    if (!c) return toast("enter a code");
+    try {
+      const j = await api(`/api/match/${c}/join`, { name: name() });
+      S.code = c; S.token = j.token; S.seat = j.seat; S.state = j.state; S.sel = null; S.queued = [];
+      if (j.spectator) toast("match already running — spectating");
+      enter();
+    } catch (e) { toast(e.message); }
+  }
+  function enter() {
+    $("#lobby").style.display = "none";
+    $("#wait").style.display = S.state.status === "lobby" ? "block" : "none";
+    $("#gamewrap").style.display = S.state.status === "lobby" ? "none" : "block";
+    $("#waitcode").textContent = S.code;
+    if (es) es.close();
+    es = new EventSource(`/api/match/${S.code}/events`);
+    es.onmessage = (ev) => { try { render(JSON.parse(ev.data)); } catch(e){} };
+    render(S.state);
+  }
+  async function startMatch() {
+    try { const j = await api(`/api/match/${S.code}/start`, { token: S.token }); render(j.state); }
+    catch (e) { toast(e.message); }
+  }
+  async function submit(actions) {
+    try {
+      const j = await api(`/api/match/${S.code}/move`, { token: S.token, actions });
+      S.queued = []; S.sel = null; render(j.state);
+    } catch (e) { toast(e.message); }
+  }
+
+  function myPieces() {
+    return (S.state.pieces || []).filter(p => p.seat === S.seat);
+  }
+  function adjacentTiles(x, y) {
+    return [[x+1,y],[x-1,y],[x,y+1],[x,y-1]].filter(([a,b]) => a>=0 && b>=0 && a<S.state.size && b<S.state.size);
+  }
+  function isWall(x,y){ return S.state.walls.includes(x+","+y); }
+
+  function onCell(x, y) {
+    const st = S.state;
+    if (st.status !== "active") return;
+    if (st.turnOf !== S.seat) return toast("not your turn");
+    const occupied = st.pieces.find(p => p.x===x && p.y===y);
+    const mineHere = occupied && occupied.seat === S.seat;
+    if (mineHere) { S.sel = occupied.id; S.queued = []; drawBoard(); return; }
+    const pc = st.pieces.find(p => p.id === S.sel);
+    if (!pc) return;
+    const d = Math.abs(pc.x-x) + Math.abs(pc.y-y);
+    if (d !== 1) return toast("pick a piece first, then an adjacent tile");
+    if (isWall(x,y)) return toast("that tile is a wall");
+    if (S.queued.length >= 2) return toast("2 actions max — submit them");
+    if (!occupied) S.queued.push({ pieceId: pc.id, type: "move", to: [x,y] });
+    else if (occupied.seat !== S.seat) S.queued.push({ pieceId: pc.id, type: "attack", to: [x,y] });
+    else return toast("your own piece is there");
+    // project the queued action locally so the next click chains sensibly
+    if (!occupied) { pc.x = x; pc.y = y; }
+    drawBoard(); paintQueue();
+  }
+
+  function paintQueue(){
+    $("#acts").textContent = `actions ${S.queued.length}/2`;
+  }
+
+  function drawBoard() {
+    const st = S.state, b = $("#board");
+    b.style.gridTemplateColumns = `repeat(${st.size},1fr)`;
+    b.innerHTML = "";
+    const pcById = Object.fromEntries(st.pieces.map(p => [p.id, p]));
+    for (let y=0; y<st.size; y++) for (let x=0; x<st.size; x++) {
+      const c = document.createElement("div");
+      c.className = "cell" + (isWall(x,y) ? " wall" : "") + (st.objectives.includes(x+","+y) ? " obj" : "");
+      const occ = st.pieces.find(p => p.x===x && p.y===y);
+      if (occ) {
+        const el = document.createElement("div");
+        el.className = "pc " + PCOL[occ.seat];
+        el.textContent = occ.seat === S.seat ? "You" : String(occ.seat);
+        if (occ.hp < 3) { const h=document.createElement("span"); h.className="hp"; h.textContent=occ.hp; el.appendChild(h); }
+        c.appendChild(el);
+      }
+      if (S.sel && pcById[S.sel] && pcById[S.sel].x===x && pcById[S.sel].y===y) c.classList.add("sel");
+      c.onclick = () => onCell(x, y);
+      b.appendChild(c);
+    }
+  }
+
+  function render(st) {
+    S.state = st;
+    if (st.status === "lobby") {
+      $("#wait").style.display = "block";
+      $("#gamewrap").style.display = "none";
+      $("#waitcode").textContent = S.code;
+      $("#players").innerHTML = st.players.map(p =>
+        `<div class="pl"><span class="dot ${PCOL[p.seat]}"></span><span class="nm">${esc(p.name)}</span>
+         <span class="pts">${p.seat===S.seat?"(you)":""}</span></div>`).join("") || "<div class='pl'>—</div>";
+      return;
+    }
+    $("#wait").style.display = "none";
+    $("#gamewrap").style.display = "block";
+    $("#room").textContent = st.code;
+    $("#turnn").textContent = st.turn;
+    const who = st.players.find(p => p.seat === st.turnOf);
+    $("#turnwho").textContent = st.status === "finished"
+      ? ("winner: " + ((st.players.find(p=>p.seat===st.winner)||{}).name || "—"))
+      : ("turn: " + ((who||{}).name || "—") + (st.turnOf===S.seat ? " (you)" : ""));
+    $("#timer").textContent = st.status === "active" ? (st.secondsLeft + "s") : st.status;
+    $("#startbtn").style.display = st.status === "lobby" ? "inline-block" : "none";
+    $("#players").innerHTML = st.players.map(p =>
+      `<div class="pl ${p.seat===st.turnOf?"turn":""} ${p.alive?"":"dead"}">
+         <span class="dot ${PCOL[p.seat]}"></span>
+         <span class="nm">${esc(p.name)}${p.bot?" 🤖":""}${p.seat===S.seat?" (you)":""}</span>
+         <span class="pts">${p.points} pt · ${p.hp} hp</span></div>`).join("");
+    $("#log").innerHTML = st.log.map(l => {
+      const a = l.actions ? " " + l.actions.map(x =>
+        x.type==="killed" ? `killed ${x.pieceId}` : `${x.pieceId} ${x.type}${x.to?" →"+x.to.join(","):""}`).join(", ") : "";
+      const extra = l.gained ? ` +${l.gained} (${l.total})` : (l.name && l.type!=="join" ? " " + l.name : (l.name||""));
+      return `<div>[${l.type}] s${l.seat ?? ""}${esc(a||extra||"")}</div>`;
+    }).join("");
+    $("#log").scrollTop = 1e9;
+    drawBoard(); paintQueue();
+    $("#hint").textContent = st.status === "finished"
+      ? "Match over."
+      : (st.turnOf === S.seat ? "Your turn — click a piece, then an adjacent tile. Submit up to 2 actions."
+                              : "Waiting for " + ((who||{}).name || "…"));
+  }
+  const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+  $("#create").onclick = () => create(false);
+  $("#practice").onclick = () => create(true);
+  $("#joincode").onclick = join;
+  $("#code").addEventListener("keydown", e => { if (e.key === "Enter") join(); });
+  $("#startbtn").onclick = startMatch;
+  $("#newbtn").onclick = () => location.reload();
+  document.addEventListener("keydown", e => {
+    if (e.key === "Enter" && S.queued.length) submit(S.queued);
+    if (e.key === "Escape") { S.queued = []; S.sel = null; drawBoard(); paintQueue(); }
+  });
+})();
+</script>
+</body>
+</html>
