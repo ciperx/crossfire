@@ -53,7 +53,10 @@
   .pl .pts{font-variant-numeric:tabular-nums;color:var(--dim)}
   #log{height:190px;overflow:auto;font:12.5px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;
        color:var(--dim);white-space:pre-wrap}
-  .meta{display:flex;justify-content:space-between;font-size:13px;color:var(--dim);margin-top:8px}
+  .meta{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13px;color:var(--dim);margin-top:8px}
+  .actsbar{display:flex;align-items:center;gap:10px;white-space:nowrap}
+  #subbtn{padding:5px 11px;font-size:12.5px;border-radius:8px}
+  #subbtn:disabled{opacity:.42;cursor:default}
   .badge{background:#233047;border:1px solid #33425c;border-radius:20px;padding:2px 10px;font-size:12px}
   #toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#3b1d24;color:#ffd7de;
          border:1px solid #7f3040;padding:10px 16px;border-radius:10px;opacity:0;transition:.25s;pointer-events:none}
@@ -84,6 +87,7 @@
         </div>
         <div class="row">
           <span class="badge" id="timer">—</span>
+          <button id="subbtn" disabled>Submit turn ⏎</button>
           <button id="startbtn" style="display:none">Start match</button>
           <button id="newbtn">New</button>
         </div>
@@ -91,7 +95,7 @@
       <div id="board"></div>
       <div class="meta">
         <span id="hint">Select one of your pieces, then click an adjacent tile.</span>
-        <span id="acts">actions 0/2</span>
+        <span class="actsbar"><span id="acts">actions 0/2</span></span>
       </div>
     </div>
     <div id="wait" style="display:none">
@@ -215,6 +219,8 @@
 
   function paintQueue(){
     $("#acts").textContent = `actions ${S.queued.length}/2`;
+    const sb = $("#subbtn");
+    if (sb) sb.disabled = !(S.queued.length && S.state && S.state.turnOf === S.seat && S.state.status === "active");
   }
 
   function drawBoard() {
@@ -234,6 +240,8 @@
         c.appendChild(el);
       }
       if (S.sel && pcById[S.sel] && pcById[S.sel].x===x && pcById[S.sel].y===y) c.classList.add("sel");
+      else if (S.sel && pcById[S.sel] && !isWall(x,y) &&
+               Math.abs(pcById[S.sel].x-x)+Math.abs(pcById[S.sel].y-y)===1) c.classList.add("act");
       c.onclick = () => onCell(x, y);
       b.appendChild(c);
     }
@@ -275,7 +283,7 @@
     drawBoard(); paintQueue();
     $("#hint").textContent = st.status === "finished"
       ? "Match over."
-      : (st.turnOf === S.seat ? "Your turn — click a piece, then an adjacent tile. Submit up to 2 actions."
+      : (st.turnOf === S.seat ? "Your turn — click a piece, then an adjacent tile. Queue up to 2 actions, then Submit turn (⏎)."
                               : "Waiting for " + ((who||{}).name || "…"));
   }
   const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -286,6 +294,7 @@
   $("#code").addEventListener("keydown", e => { if (e.key === "Enter") join(); });
   $("#startbtn").onclick = startMatch;
   $("#newbtn").onclick = () => location.reload();
+  $("#subbtn").onclick = () => { if (S.queued.length) submit(S.queued); else toast("queue an action first"); };
   document.addEventListener("keydown", e => {
     if (e.key === "Enter" && S.queued.length) submit(S.queued);
     if (e.key === "Escape") { S.queued = []; S.sel = null; drawBoard(); paintQueue(); }

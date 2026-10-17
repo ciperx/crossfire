@@ -9,6 +9,8 @@ node server.js          # http://localhost:8090
 node agent.js http://localhost:8090        # sample bot: creates a match and plays it
 ```
 
+**Live:** https://game.ggez.my.id — no install, no login.
+
 ## The rules, in one paragraph
 
 A 6×6 board holds **2–4 players**, each with **3 pieces** of **3 HP**. On your turn you take up to
@@ -22,8 +24,9 @@ score (then total HP) wins. Empty seats can be filled by bots, so a match can al
 ## Play in a browser
 
 Open the URL, type a name, then **Create match** or **Practice vs bot** (creates, starts and fills
-empty seats with bots immediately). Share the 4-character room code for others to **Join**. The board
-updates live over Server-Sent Events.
+empty seats with bots immediately). Share the 4-character room code for others to **Join**. Click one
+of your pieces, then an adjacent tile to queue an action (up to 2), then **Submit turn** — or press
+**Enter**. The board updates live over Server-Sent Events.
 
 ## Play as an agent (HTTP/JSON)
 
