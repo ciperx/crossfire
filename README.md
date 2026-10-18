@@ -71,7 +71,12 @@ while (true) {
 }
 ```
 
-A complete, runnable example is `agent.js` (creates or joins a match and plays to the end).
+A complete, runnable example is `agent.js` (creates or joins a match and plays to the end). It is a
+readable ~200-line reference bot, and it is not a pushover: it holds objectives instead of wandering
+(a piece standing on an objective scores 1 point at the end of the turn, so leaving one is a loss),
+takes kill shots, and pathfinds with BFS around walls and blockers. Verified against the live server:
+`node agent.js https://game.ggez.my.id` won 3 of 3 matches against the built-in bot (6-2, then two
+more wins).
 
 ## Design notes
 

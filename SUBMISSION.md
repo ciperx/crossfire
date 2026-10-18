@@ -20,8 +20,8 @@ can always start, and the whole ruleset fits in one paragraph at `/api/rules`.
   client over HTTPS; open it, hit *Practice vs bot*, and play immediately.
 - **Agents play via a documented HTTP/JSON API; include one basic sample bot** — `/api/rules`
   documents every endpoint; `agent.js` is the sample bot (creates or joins a match and plays it).
-  Verified live: `node agent.js https://game.ggez.my.id` created a match, played 11 turns against a
-  bot and finished with a logged winner.
+  Verified live: `node agent.js https://game.ggez.my.id` created a match, played it to the end and
+  **won 3 of 3** against the built-in bot (first match 6-2, `turn 17`).
 - **Lobby or match code to join; empty seats filled by a bot** — lobby lists open matches
   (`GET /api/matches`), join with the room code, and `POST /start` fills empty seats with bots.
 - **Clear win condition; a match log or replay** — first to 6 points, or last player standing, or
